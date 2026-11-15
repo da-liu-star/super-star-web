@@ -1,0 +1,15 @@
+CREATE DATABASE IF NOT EXISTS super_star_user
+  CHARACTER SET utf8mb4
+  COLLATE utf8mb4_unicode_ci;
+
+CREATE DATABASE IF NOT EXISTS super_star_oauth
+  CHARACTER SET utf8mb4
+  COLLATE utf8mb4_unicode_ci;
+
+CREATE USER IF NOT EXISTS 'super_star_app'@'%'
+  IDENTIFIED BY 'replace-with-a-strong-password';
+
+GRANT ALL PRIVILEGES ON super_star_user.* TO 'super_star_app'@'%';
+GRANT ALL PRIVILEGES ON super_star_oauth.* TO 'super_star_app'@'%';
+
+FLUSH PRIVILEGES;

@@ -79,3 +79,6 @@ Endpoints:
 
 For a production deployment, serve the built `dist` directory and proxy `/api`
 to the OAuth service on the same origin.
+
+For the complete Aliyun Docker deployment, see
+[DEPLOY_DOCKER.md](DEPLOY_DOCKER.md).
