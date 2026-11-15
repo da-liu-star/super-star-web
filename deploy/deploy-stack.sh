@@ -8,9 +8,6 @@ BACKEND_SOURCE="${2:?Backend source directory is required}"
 
 mkdir -p "$APP_ROOT"
 
-exec 9>/tmp/super-star-deploy.lock
-flock 9
-
 if [ ! -f "$FRONTEND_SOURCE/deploy/docker-compose.yml" ]; then
   echo "Frontend source is incomplete: $FRONTEND_SOURCE"
   exit 1
@@ -35,6 +32,14 @@ fi
 export BACKEND_ROOT="$BACKEND_SOURCE"
 
 cd "$FRONTEND_SOURCE/deploy"
+echo "[deploy] Validating Docker Compose configuration"
 "${DOCKER[@]}" compose --env-file "$APP_ROOT/.env" config >/dev/null
-"${DOCKER[@]}" compose --env-file "$APP_ROOT/.env" up -d --build --remove-orphans
+
+echo "[deploy] Building application images"
+"${DOCKER[@]}" compose --env-file "$APP_ROOT/.env" build --progress=plain
+
+echo "[deploy] Starting application containers"
+"${DOCKER[@]}" compose --env-file "$APP_ROOT/.env" up -d --no-build --remove-orphans
+
+echo "[deploy] Deployment complete"
 "${DOCKER[@]}" compose --env-file "$APP_ROOT/.env" ps

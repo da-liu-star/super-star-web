@@ -21,7 +21,6 @@ Verify the required tools:
 
 ```bash
 tar --version
-flock --version
 docker --version
 docker compose version
 nginx -v
@@ -256,30 +255,29 @@ Either push starts its repository workflow:
 - Frontend: `Deploy Docker Stack To Aliyun`
 - Backend: `Deploy Backend To Aliyun`
 
-Both workflows call the shared `deploy/deploy-stack.sh` script after pulling the
-latest frontend repository. A server-side lock prevents concurrent deployments.
-The workflow checks out both repositories on GitHub Actions, packages the source
-into a temporary archive, uploads it through SCP, and builds the images from the
-extracted temporary directory. The ECS server does not access GitHub or run
-`git clone`.
+Both workflows call the shared `deploy/deploy-stack.sh` script after downloading
+the source archive. The workflow checks out both repositories on GitHub Actions,
+packages the source into a temporary archive, uploads it through SCP, and builds
+the images from the extracted temporary directory. The ECS server does not
+access GitHub or run `git clone`. Avoid starting both repository workflows at
+the same time.
 
 ## 6. Verify
 
 ```bash
-cd /opt/super-star/frontend/deploy
-sudo docker compose --env-file /opt/super-star/.env ps
-sudo docker compose --env-file /opt/super-star/.env logs -f oauth user web
+sudo docker ps --filter label=com.docker.compose.project=super-star
+sudo docker logs -f super-star-oauth-1
+sudo docker logs -f super-star-user-1
+sudo docker logs -f super-star-web-1
 curl -I http://127.0.0.1:8080
 ```
 
 Confirm the backend profiles and Compose services:
 
 ```bash
-sudo docker compose --env-file /opt/super-star/.env exec user \
-  printenv SPRING_PROFILES_ACTIVE
-sudo docker compose --env-file /opt/super-star/.env exec oauth \
-  printenv SPRING_PROFILES_ACTIVE
-sudo docker compose --env-file /opt/super-star/.env ps --services
+sudo docker exec super-star-user-1 printenv SPRING_PROFILES_ACTIVE
+sudo docker exec super-star-oauth-1 printenv SPRING_PROFILES_ACTIVE
+sudo docker ps --filter label=com.docker.compose.project=super-star
 ```
 
 The profile commands should print `prod`, and Compose should list only:
