@@ -20,7 +20,8 @@ instance should terminate HTTPS and proxy to `127.0.0.1:8080`.
 Verify the required tools:
 
 ```bash
-git --version
+tar --version
+flock --version
 docker --version
 docker compose version
 nginx -v
@@ -30,14 +31,14 @@ Install any missing packages for your Aliyun image. For Ubuntu/Debian:
 
 ```bash
 sudo apt update
-sudo apt install -y git nginx docker.io docker-compose-plugin
+sudo apt install -y tar util-linux nginx docker.io docker-compose-plugin
 sudo systemctl enable --now docker
 ```
 
 For Alibaba Cloud Linux or another RPM-based image:
 
 ```bash
-sudo dnf install -y git nginx docker docker-compose-plugin
+sudo dnf install -y tar util-linux nginx docker docker-compose-plugin
 sudo systemctl enable --now docker
 ```
 
@@ -58,7 +59,6 @@ Create `/opt/super-star/.env`:
 cd /opt/super-star
 umask 077
 cat > .env <<EOF
-BACKEND_ROOT=/opt/super-star/backend
 MYSQL_HOST=host.docker.internal
 MYSQL_PORT=3306
 MYSQL_USER=super_star_app
@@ -258,8 +258,10 @@ Either push starts its repository workflow:
 
 Both workflows call the shared `deploy/deploy-stack.sh` script after pulling the
 latest frontend repository. A server-side lock prevents concurrent deployments.
-The ECS server pulls both repositories, builds application images and starts the
-stack.
+The workflow checks out both repositories on GitHub Actions, packages the source
+into a temporary archive, uploads it through SCP, and builds the images from the
+extracted temporary directory. The ECS server does not access GitHub or run
+`git clone`.
 
 ## 6. Verify
 
@@ -299,9 +301,9 @@ same Docker Compose stack.
 Rollback options:
 
 ```bash
-docker image ls
-docker compose --env-file /opt/super-star/.env down
-git -C /opt/super-star/backend checkout <previous-commit>
-cd /opt/super-star/frontend/deploy
-sudo docker compose --env-file /opt/super-star/.env up -d --build
+git revert <bad-commit>
+git push origin main
 ```
+
+The revert push starts a new deployment from a known-good commit. MySQL data is
+not affected because it is outside Docker Compose.

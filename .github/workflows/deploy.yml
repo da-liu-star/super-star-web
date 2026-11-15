@@ -22,6 +22,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Checkout backend source
+        uses: actions/checkout@v4
+        with:
+          repository: da-liu-star/super-star
+          ref: main
+          path: backend-source
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
@@ -36,6 +43,36 @@ jobs:
           npm test
           npm run build
 
+      - name: Package sources
+        run: |
+          mkdir -p /tmp/super-star-release/frontend
+          mkdir -p /tmp/super-star-release/backend
+
+          tar -C "$GITHUB_WORKSPACE" \
+            --exclude=.git \
+            --exclude=node_modules \
+            --exclude=dist \
+            --exclude=backend-source \
+            -cf - . | tar -C /tmp/super-star-release/frontend -xf -
+
+          tar -C "$GITHUB_WORKSPACE/backend-source" \
+            --exclude=.git \
+            --exclude=target \
+            -cf - . | tar -C /tmp/super-star-release/backend -xf -
+
+          tar -C /tmp/super-star-release \
+            -czf "release-source-${{ github.sha }}.tgz" .
+
+      - name: Upload source archive
+        uses: appleboy/scp-action@ff85246acaad7bdce478db94a363cd2bf7c90345
+        with:
+          host: ${{ secrets.ALIYUN_HOST }}
+          username: ${{ secrets.ALIYUN_USER }}
+          key: ${{ secrets.ALIYUN_SSH_KEY }}
+          port: ${{ secrets.ALIYUN_PORT }}
+          source: release-source-${{ github.sha }}.tgz
+          target: /tmp
+
       - name: Build and deploy Docker stack
         uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2
         with:
@@ -49,17 +86,14 @@ jobs:
             set -euo pipefail
 
             APP_ROOT=/opt/super-star
-            FRONTEND_DIR="$APP_ROOT/frontend"
-            FRONTEND_REPO=https://github.com/da-liu-star/super-star-web.git
+            ARCHIVE="/tmp/release-source-${{ github.sha }}.tgz"
+            SOURCE_ROOT=$(mktemp -d /tmp/super-star-source.XXXXXX)
+            trap 'rm -rf "$SOURCE_ROOT"; rm -f "$ARCHIVE"' EXIT
 
             mkdir -p "$APP_ROOT"
 
-            if [ ! -d "$FRONTEND_DIR/.git" ]; then
-              git clone --branch main "$FRONTEND_REPO" "$FRONTEND_DIR"
-            else
-              git -C "$FRONTEND_DIR" fetch origin main --prune
-              git -C "$FRONTEND_DIR" checkout main
-              git -C "$FRONTEND_DIR" pull --ff-only origin main
-            fi
+            tar -xzf "$ARCHIVE" -C "$SOURCE_ROOT"
 
-            bash "$FRONTEND_DIR/deploy/deploy-stack.sh"
+            bash "$SOURCE_ROOT/frontend/deploy/deploy-stack.sh" \
+              "$SOURCE_ROOT/frontend" \
+              "$SOURCE_ROOT/backend"

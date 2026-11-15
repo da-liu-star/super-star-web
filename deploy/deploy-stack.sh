@@ -3,32 +3,23 @@
 set -euo pipefail
 
 APP_ROOT="${APP_ROOT:-/opt/super-star}"
-FRONTEND_DIR="$APP_ROOT/frontend"
-BACKEND_DIR="$APP_ROOT/backend"
-FRONTEND_REPO="https://github.com/da-liu-star/super-star-web.git"
-BACKEND_REPO="https://github.com/da-liu-star/super-star.git"
+FRONTEND_SOURCE="${1:?Frontend source directory is required}"
+BACKEND_SOURCE="${2:?Backend source directory is required}"
 
 mkdir -p "$APP_ROOT"
 
 exec 9>/tmp/super-star-deploy.lock
 flock 9
 
-update_repo() {
-  local directory="$1"
-  local repository="$2"
+if [ ! -f "$FRONTEND_SOURCE/deploy/docker-compose.yml" ]; then
+  echo "Frontend source is incomplete: $FRONTEND_SOURCE"
+  exit 1
+fi
 
-  if [ ! -d "$directory/.git" ]; then
-    git clone --branch main "$repository" "$directory"
-    return
-  fi
-
-  git -C "$directory" fetch origin main --prune
-  git -C "$directory" checkout main
-  git -C "$directory" pull --ff-only origin main
-}
-
-update_repo "$FRONTEND_DIR" "$FRONTEND_REPO"
-update_repo "$BACKEND_DIR" "$BACKEND_REPO"
+if [ ! -f "$BACKEND_SOURCE/Dockerfile" ]; then
+  echo "Backend source is incomplete: $BACKEND_SOURCE"
+  exit 1
+fi
 
 if [ ! -f "$APP_ROOT/.env" ]; then
   echo "Missing $APP_ROOT/.env"
@@ -41,7 +32,9 @@ else
   DOCKER=(sudo -n docker)
 fi
 
-cd "$FRONTEND_DIR/deploy"
+export BACKEND_ROOT="$BACKEND_SOURCE"
+
+cd "$FRONTEND_SOURCE/deploy"
 "${DOCKER[@]}" compose --env-file "$APP_ROOT/.env" config >/dev/null
 "${DOCKER[@]}" compose --env-file "$APP_ROOT/.env" up -d --build --remove-orphans
 "${DOCKER[@]}" compose --env-file "$APP_ROOT/.env" ps
