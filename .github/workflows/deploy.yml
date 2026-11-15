@@ -50,41 +50,16 @@ jobs:
 
             APP_ROOT=/opt/super-star
             FRONTEND_DIR="$APP_ROOT/frontend"
-            BACKEND_DIR="$APP_ROOT/backend"
             FRONTEND_REPO=https://github.com/da-liu-star/super-star-web.git
-            BACKEND_REPO=https://github.com/da-liu-star/super-star.git
 
             mkdir -p "$APP_ROOT"
 
-            update_repo() {
-              local directory="$1"
-              local repository="$2"
-
-              if [ ! -d "$directory/.git" ]; then
-                git clone --branch main "$repository" "$directory"
-                return
-              fi
-
-              git -C "$directory" fetch origin main --prune
-              git -C "$directory" checkout main
-              git -C "$directory" pull --ff-only origin main
-            }
-
-            update_repo "$FRONTEND_DIR" "$FRONTEND_REPO"
-            update_repo "$BACKEND_DIR" "$BACKEND_REPO"
-
-            if [ ! -f "$APP_ROOT/.env" ]; then
-              echo "Missing $APP_ROOT/.env"
-              exit 1
-            fi
-
-            if docker info >/dev/null 2>&1; then
-              DOCKER=(docker)
+            if [ ! -d "$FRONTEND_DIR/.git" ]; then
+              git clone --branch main "$FRONTEND_REPO" "$FRONTEND_DIR"
             else
-              DOCKER=(sudo -n docker)
+              git -C "$FRONTEND_DIR" fetch origin main --prune
+              git -C "$FRONTEND_DIR" checkout main
+              git -C "$FRONTEND_DIR" pull --ff-only origin main
             fi
 
-            cd "$FRONTEND_DIR/deploy"
-            "${DOCKER[@]}" compose --env-file "$APP_ROOT/.env" config >/dev/null
-            "${DOCKER[@]}" compose --env-file "$APP_ROOT/.env" up -d --build --remove-orphans
-            "${DOCKER[@]}" compose --env-file "$APP_ROOT/.env" ps
+            bash "$FRONTEND_DIR/deploy/deploy-stack.sh"

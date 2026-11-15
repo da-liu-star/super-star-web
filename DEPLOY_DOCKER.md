@@ -230,8 +230,12 @@ ALIYUN_SSH_KEY
 ALIYUN_PORT
 ```
 
-The workflow declares `environment: production`. If the environment has a
-different name, update `.github/workflows/deploy.yml`.
+Add the same four secrets to the **backend repository's** `production`
+environment as well. GitHub secrets are repository-scoped and are not shared
+between the frontend and backend repositories.
+
+Both workflows declare `environment: production`. If the environment has a
+different name, update `.github/workflows/deploy.yml` in both repositories.
 
 ## 5. Push both repositories
 
@@ -247,8 +251,15 @@ git -C "E:\vscode workspace\super-star-web" commit -m "build: deploy Docker stac
 git -C "E:\vscode workspace\super-star-web" push origin main
 ```
 
-The frontend push starts the GitHub Actions workflow. The ECS server pulls both
-repositories, builds the images and starts the stack.
+Either push starts its repository workflow:
+
+- Frontend: `Deploy Docker Stack To Aliyun`
+- Backend: `Deploy Backend To Aliyun`
+
+Both workflows call the shared `deploy/deploy-stack.sh` script after pulling the
+latest frontend repository. A server-side lock prevents concurrent deployments.
+The ECS server pulls both repositories, builds application images and starts the
+stack.
 
 ## 6. Verify
 
@@ -281,9 +292,9 @@ Open the public domain after host Nginx and DNS are configured.
 
 ## Updates and rollback
 
-Frontend pushes to `main` trigger the full stack update. After a backend-only
-change, use **Actions -> Deploy Docker Stack To Aliyun -> Run workflow** to
-pull the latest backend revision.
+Frontend pushes to `main` trigger `Deploy Docker Stack To Aliyun`. Backend
+pushes to `main` trigger `Deploy Backend To Aliyun`. Both workflows update the
+same Docker Compose stack.
 
 Rollback options:
 
