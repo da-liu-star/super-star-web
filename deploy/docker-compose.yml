@@ -8,8 +8,9 @@ services:
       args:
         MODULE: user
     restart: unless-stopped
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+    networks:
+      - default
+      - mysql-net
     environment:
       SPRING_PROFILES_ACTIVE: prod
       DB_USERNAME: ${MYSQL_USER:?Set MYSQL_USER in /opt/super-star/.env}
@@ -25,8 +26,9 @@ services:
       args:
         MODULE: oauth
     restart: unless-stopped
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+    networks:
+      - default
+      - mysql-net
     environment:
       SPRING_PROFILES_ACTIVE: prod
       DB_USERNAME: ${MYSQL_USER:?Set MYSQL_USER in /opt/super-star/.env}
@@ -58,3 +60,8 @@ services:
       timeout: 5s
       retries: 10
       start_period: 10s
+
+networks:
+  mysql-net:
+    external: true
+    name: ${MYSQL_NETWORK:-super-star-net}

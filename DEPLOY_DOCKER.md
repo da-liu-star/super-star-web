@@ -6,8 +6,9 @@ The Aliyun ECS server runs the application stack with Docker Compose:
 - `oauth`: Spring OAuth service on the internal Docker network
 - `user`: Spring user service on the internal Docker network
 
-MySQL is not managed by Compose. The application containers connect to the
-existing MySQL instance on the ECS host through `host.docker.internal`.
+MySQL is not managed by Compose. The existing MySQL container and the
+application containers join the same external Docker network. The application
+containers connect using the MySQL container name rather than `localhost`.
 
 The backend images run with `SPRING_PROFILES_ACTIVE=prod`. Local backend runs
 use the default `dev` profile from `application.yml`.
@@ -58,7 +59,8 @@ Create `/opt/super-star/.env`:
 cd /opt/super-star
 umask 077
 cat > .env <<EOF
-MYSQL_HOST=host.docker.internal
+MYSQL_HOST=mysql-container-name
+MYSQL_NETWORK=super-star-net
 MYSQL_PORT=3306
 MYSQL_USER=super_star_app
 MYSQL_PASSWORD=the-existing-password-for-super_star_app
@@ -71,7 +73,41 @@ application database user, not a new random password. `USER_INTERNAL_TOKEN` is
 generated once and then reused by both the OAuth and User containers. Do not
 commit this file.
 
-## 2. Initialize the existing MySQL
+## 2. Connect the existing MySQL container
+
+Find the MySQL container name:
+
+```bash
+docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.Ports}}'
+```
+
+This guide assumes the name is `mysql-container-name`; replace it with the real
+name. Create the shared network if it does not exist:
+
+```bash
+docker network inspect super-star-net >/dev/null 2>&1 \
+  || docker network create super-star-net
+```
+
+Connect the MySQL container to the network:
+
+```bash
+docker network connect super-star-net mysql-container-name
+```
+
+If Docker reports that the container is already connected, no action is needed.
+
+Set these values in `/opt/super-star/.env`:
+
+```ini
+MYSQL_NETWORK=super-star-net
+MYSQL_HOST=mysql-container-name
+```
+
+Do not use `localhost`: inside the User/OAuth containers that means the
+container itself.
+
+## 3. Initialize the existing MySQL
 
 Use an administrative account to create both databases and a dedicated
 application user. Replace the password with the same value stored in
@@ -91,11 +127,11 @@ GRANT ALL PRIVILEGES ON super_star_oauth.* TO 'super_star_app'@'%';
 FLUSH PRIVILEGES;
 ```
 
-The MySQL service must accept connections from the Docker bridge. If MySQL only
-listens on `127.0.0.1`, update `bind-address` in the MySQL configuration and
-restart MySQL. Keep port `3306` closed in the Aliyun security group.
+If the MySQL container is already on another user-defined network, set
+`MYSQL_NETWORK` to that existing network name instead of creating a second one.
+Keep port `3306` closed in the Aliyun security group.
 
-## 3. Configure host Nginx
+## 4. Configure host Nginx
 
 First identify the operating system:
 
@@ -218,7 +254,7 @@ http://127.0.0.1:8080
 The web container proxies `/api/` to the OAuth container. Add HTTPS with an
 Aliyun certificate or Certbot after HTTP works.
 
-## 4. Configure GitHub
+## 5. Configure GitHub
 
 Create an environment named `production` with these Environment secrets:
 
@@ -236,7 +272,7 @@ between the frontend and backend repositories.
 Both workflows declare `environment: production`. If the environment has a
 different name, update `.github/workflows/deploy.yml` in both repositories.
 
-## 5. Push both repositories
+## 6. Push both repositories
 
 Push the backend Dockerfile and the frontend deployment files:
 
@@ -262,7 +298,7 @@ the images from the extracted temporary directory. The ECS server does not
 access GitHub or run `git clone`. Avoid starting both repository workflows at
 the same time.
 
-## 6. Verify
+## 7. Verify
 
 ```bash
 sudo docker ps --filter label=com.docker.compose.project=super-star
